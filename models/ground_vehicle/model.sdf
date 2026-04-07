@@ -1,0 +1,59 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="ground_vehicle">
+
+    <link name="chassis">
+      <inertial>
+        <mass>5.0</mass>
+        <inertia><ixx>0.13</ixx><iyy>0.30</iyy><izz>0.43</izz></inertia>
+      </inertial>
+      <visual name="chassis_visual">
+        <geometry><box><size>0.6 0.4 0.15</size></box></geometry>
+        <material><ambient>0.8 0.1 0.1 1</ambient><diffuse>0.8 0.1 0.1 1</diffuse></material>
+      </visual>
+      <collision name="chassis_collision">
+        <geometry><box><size>0.6 0.4 0.15</size></box></geometry>
+      </collision>
+    </link>
+
+    <!-- Left Wheel -->
+    <link name="left_wheel">
+      <pose>0 0.22 -0.05 -1.5707 0 0</pose>
+      <inertial><mass>1.0</mass><inertia><ixx>0.043</ixx><iyy>0.043</iyy><izz>0.08</izz></inertia></inertial>
+      <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>0.05</length></cylinder></geometry>
+        <material><ambient>0.1 0.1 0.1 1</ambient></material></visual>
+      <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>0.05</length></cylinder></geometry></collision>
+    </link>
+
+    <!-- Right Wheel -->
+    <link name="right_wheel">
+      <pose>0 -0.22 -0.05 -1.5707 0 0</pose>
+      <inertial><mass>1.0</mass><inertia><ixx>0.043</ixx><iyy>0.043</iyy><izz>0.08</izz></inertia></inertial>
+      <visual name="visual"><geometry><cylinder><radius>0.1</radius><length>0.05</length></cylinder></geometry>
+        <material><ambient>0.1 0.1 0.1 1</ambient></material></visual>
+      <collision name="collision"><geometry><cylinder><radius>0.1</radius><length>0.05</length></cylinder></geometry></collision>
+    </link>
+
+    <joint name="left_wheel_joint" type="revolute">
+      <parent>chassis</parent><child>left_wheel</child>
+      <axis><xyz>0 0 1</xyz></axis>
+    </joint>
+
+    <joint name="right_wheel_joint" type="revolute">
+      <parent>chassis</parent><child>right_wheel</child>
+      <axis><xyz>0 0 1</xyz></axis>
+    </joint>
+
+    <!-- Differential drive plugin - makes it drivable -->
+    <plugin filename="gz-sim-diff-drive-system"
+            name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.44</wheel_separation>
+      <wheel_radius>0.1</wheel_radius>
+      <topic>/ground_vehicle/cmd_vel</topic>
+      <odom_topic>/ground_vehicle/odom</odom_topic>
+    </plugin>
+
+  </model>
+</sdf>
