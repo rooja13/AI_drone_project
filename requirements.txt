@@ -1,0 +1,13 @@
+# Python dependencies for AI Drone Tracker
+# Install with: pip install -r requirements.txt
+
+# Image processing and display
+opencv-python
+numpy
+
+# Tello drone SDK (for real drone deployment)
+djitellopy
+
+# Note: Gazebo Python bindings are NOT pip-installable.
+# Install them via apt instead:
+#   sudo apt install python3-gz-transport13 python3-gz-msgs10
