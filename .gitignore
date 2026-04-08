@@ -1,0 +1,17 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Gazebo runtime files
+*.log
+*.bag
+
+# OS files
+.DS_Store
+Thumbs.db
