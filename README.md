@@ -32,10 +32,12 @@ Install Python pip (if not already installed) with the following command:
 sudo apt install python3-pip
 ```
 
-Then install Gazebo for Python with:
+## Install Python API functionality
+Run the following command to install the required python modules and give python the ability to interface with the simulation.
 ```
-pip install gz-python
+sudo apt install python3-gz-transport13 python3-gz-msgs10
 ```
+
 
 # Running the Simulation
 You need to run the following command to let Gazebo know where you project models are. Make sure you are in the root directory of the project when running this command.
