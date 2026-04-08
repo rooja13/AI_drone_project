@@ -4,18 +4,18 @@ This project aims to implement a autonomous drone controlled by a neural network
 ## Project Structure
 Here is the project structure so far and is subject to change:
 
-drone_tracker/
-├── worlds/
-│   └── flat_world.sdf       # The main simulation world
-├── models/
-│   ├── quadrotor/
-│   │   ├── model.config
-│   │   └── model.sdf        # Your drone
-│   └── ground_vehicle/
-│       ├── model.config
-│       └── model.sdf        # Ground vehicle
-└── scripts/
-    └── teleop.py            # Keyboard control script
+- drone_tracker/
+  - worlds/
+    - flat_world.sdf --> The main simulation world
+  - models/
+    - quadrotor/
+      - model.config
+      - model.sdf --> drone
+  - ground_vehicle/
+      - model.config
+      - model.sdf --> Ground vehicle
+  - scripts/
+      - teleop.py --> Keyboard control script
 
 # Setup
 This setup is only for Linux (so far). I am running this on a virtual machine and I recommend you also use a virtual machine if you don't have a Linux machine.
