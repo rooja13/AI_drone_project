@@ -20,12 +20,12 @@
         <geometry><box><size>0.4 0.4 0.1</size></box></geometry>
       </collision>
 
-      <!-- Downward-facing camera -->
+      <!-- forward-facing camera -->
       <sensor name="camera" type="camera">
-        <pose>0 0 -0.06 0 1.5708 0</pose>
+        <pose>0.06 0 0 0 0 0</pose>
         <camera>
-          <horizontal_fov>1.047</horizontal_fov>
-          <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+          <horizontal_fov>1.4418</horizontal_fov>
+          <image><width>1280</width><height>720</height><format>R8G8B8</format></image>
           <clip><near>0.1</near><far>100</far></clip>
         </camera>
         <always_on>1</always_on>
