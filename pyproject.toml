@@ -1,0 +1,11 @@
+[project]
+name = "drone-project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "djitellopy>=2.5.0",
+    "numpy>=2.4.4",
+    "opencv-python>=4.13.0.92",
+]
