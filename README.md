@@ -38,7 +38,9 @@ pip install gz-python
 ```
 
 # Running the Simulation
-You may need to run the following command to let Gazebo know where you project is. Make sure you are in the root directory of the project when running this command.
+You need to run the following command to let Gazebo know where you project models are. Make sure you are in the root directory of the project when running this command.
+
+This command needs to be done every terminal session
 ```
 export GZ_SIM_RESOURCE_PATH=$PWD/models
 ```
