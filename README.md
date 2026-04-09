@@ -54,6 +54,11 @@ gz sim worlds/flat_world.sdf
 
 This should open the Gazebo GUI and you can start the simulation there.
 
+You will also need to run this command:
+```
+export PYTHONPATH=/usr/lib/python3/dist-packages:$PYTHONPATH
+```
+
 To control the drone with WASD+QE keys, open a second terminal and run the `teleop.py` file:
 ```
 python3 scripts/teleop.py
