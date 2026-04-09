@@ -3,28 +3,17 @@ import json
 import socket
 import threading
 import time
-from dataclasses import dataclass
 
 import cv2
 from djitellopy import Tello
 
-
-@dataclass
-class SimCommand:
-    vx: float = 0.0       # forward/back, m/s-ish
-    vy: float = 0.0       # left/right, m/s-ish
-    vz: float = 0.0       # up/down, m/s-ish
-    yaw_rate: float = 0.0 # rad/s-ish
-    timestamp: float = 0.0
+from command_conversion import TelloRCCommand
 
 
-def clamp(val, lo, hi):
-    return max(lo, min(hi, val))
-
-
-class SimReceiver:
-    def __init__(self, host="0.0.0.0", port=5005):
-        self.cmd = SimCommand(timestamp=time.time())
+class RCReceiver:
+    def __init__(self, host: str = "0.0.0.0", port: int = 6005):
+        self.cmd = TelloRCCommand()
+        self.timestamp = time.time()
         self.lock = threading.Lock()
         self.running = True
 
@@ -33,45 +22,37 @@ class SimReceiver:
         self.sock.settimeout(0.2)
 
     def start(self):
-        t = threading.Thread(target=self._run, daemon=True)
-        t.start()
-        return t
+        thread = threading.Thread(target=self._run, daemon=True)
+        thread.start()
+        return thread
 
     def _run(self):
         while self.running:
             try:
                 data, _addr = self.sock.recvfrom(4096)
                 msg = json.loads(data.decode("utf-8"))
-                new_cmd = SimCommand(
-                    vx=float(msg.get("vx", 0.0)),
-                    vy=float(msg.get("vy", 0.0)),
-                    vz=float(msg.get("vz", 0.0)),
-                    yaw_rate=float(msg.get("yaw_rate", 0.0)),
-                    timestamp=time.time(),
-                )
+                cmd = TelloRCCommand.from_dict(msg)
                 with self.lock:
-                    self.cmd = new_cmd
+                    self.cmd = cmd
+                    self.timestamp = time.time()
             except socket.timeout:
                 continue
-            except Exception as e:
-                print(f"[WARN] Bad sim packet: {e}")
+            except Exception as exc:
+                print(f"[WARN] Bad RC packet: {exc}")
 
     def get_latest(self):
         with self.lock:
-            return SimCommand(
-                vx=self.cmd.vx,
-                vy=self.cmd.vy,
-                vz=self.cmd.vz,
-                yaw_rate=self.cmd.yaw_rate,
-                timestamp=self.cmd.timestamp,
-            )
+            return self.cmd, self.timestamp
 
     def stop(self):
         self.running = False
-        self.sock.close()
+        try:
+            self.sock.close()
+        except OSError:
+            pass
 
 
-def video_loop(tello, stop_event):
+def video_loop(tello: Tello, stop_event: threading.Event):
     frame_reader = tello.get_frame_read()
 
     while not stop_event.is_set():
@@ -101,15 +82,18 @@ def video_loop(tello, stop_event):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--sim-port", type=int, default=5005)
-    parser.add_argument("--show-video", action="store_true")
-    parser.add_argument("--takeoff", action="store_true")
-    parser.add_argument("--k-xy", type=float, default=80.0)
-    parser.add_argument("--k-z", type=float, default=80.0)
-    parser.add_argument("--k-yaw", type=float, default=50.0)
-    parser.add_argument("--timeout", type=float, default=0.5)
+    parser = argparse.ArgumentParser(
+        description="Receives TelloRCCommand packets and sends them to a real Tello drone"
+    )
+    parser.add_argument("--rc-host", default="0.0.0.0", help="Host/interface to bind for RC packet input")
+    parser.add_argument("--rc-port", type=int, default=6005, help="UDP port for TelloRCCommand input")
+    parser.add_argument("--show-video", action="store_true", help="Display live Tello camera feed")
+    parser.add_argument("--takeoff", action="store_true", help="Take off automatically after connecting")
+    parser.add_argument("--timeout", type=float, default=0.5, help="Seconds before stale RC commands are zeroed")
+    parser.add_argument("--send-hz", type=float, default=10.0, help="How often to send RC commands to the drone")
     args = parser.parse_args()
+
+    send_period = 1.0 / max(args.send_hz, 1.0)
 
     tello = Tello()
     print("[INFO] Connecting to Tello...")
@@ -122,12 +106,12 @@ def main():
     stop_event = threading.Event()
 
     if args.show_video:
-        vt = threading.Thread(target=video_loop, args=(tello, stop_event), daemon=True)
-        vt.start()
+        video_thread = threading.Thread(target=video_loop, args=(tello, stop_event), daemon=True)
+        video_thread.start()
 
-    sim = SimReceiver(port=args.sim_port)
-    sim.start()
-    print(f"[INFO] Listening for sim commands on UDP port {args.sim_port}")
+    receiver = RCReceiver(host=args.rc_host, port=args.rc_port)
+    receiver.start()
+    print(f"[INFO] Listening for TelloRCCommand packets on UDP {args.rc_host}:{args.rc_port}")
 
     try:
         if args.takeoff:
@@ -137,20 +121,21 @@ def main():
 
         print("[INFO] Sending RC control. Ctrl+C to stop.")
         while not stop_event.is_set():
-            cmd = sim.get_latest()
-            age = time.time() - cmd.timestamp
+            cmd, timestamp = receiver.get_latest()
+            age = time.time() - timestamp
 
             if age > args.timeout:
                 lr = fb = ud = yw = 0
             else:
-                lr = int(clamp(args.k_xy * cmd.vy, -100, 100))
-                fb = int(clamp(args.k_xy * cmd.vx, -100, 100))
-                ud = int(clamp(args.k_z * cmd.vz, -100, 100))
-                yw = int(clamp(args.k_yaw * cmd.yaw_rate, -100, 100))
+                lr, fb, ud, yw = cmd.as_tuple()
 
             tello.send_rc_control(lr, fb, ud, yw)
-            print(f"\rRC => lr={lr:4d} fb={fb:4d} ud={ud:4d} yw={yw:4d}", end="")
-            time.sleep(0.1)
+            print(
+                f"\rRC => lr={lr:4d} fb={fb:4d} ud={ud:4d} yw={yw:4d} age={age:0.2f}s",
+                end="",
+                flush=True,
+            )
+            time.sleep(send_period)
 
     except KeyboardInterrupt:
         print("\n[INFO] Interrupted by user.")
@@ -169,7 +154,7 @@ def main():
         except Exception:
             pass
 
-        sim.stop()
+        receiver.stop()
 
         try:
             tello.streamoff()

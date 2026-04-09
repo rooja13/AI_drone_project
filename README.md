@@ -66,3 +66,21 @@ Q/E: up and down
 Arrow keys: control the yaw
 
 If running in a virtual machine, ensure the world SDF uses <render_engine>ogre</render_engine> instead of ogre2, which requires a physical GPU.
+
+# Connecting to the drone
+
+Turn the drone on and connect to its local Wi-Fi, which as TELLO in the name. After connection, run the following scripts. Each script needs to run in its own window as it must stay running for continuous control.
+
+```
+python tello_bridge.py --rc-port 6005 --takeoff--show-video
+```
+
+```
+python command_conversion.py --input_port 5005 --output_port 6005
+```
+
+If you would like manual control, run the follow script.
+
+```
+python tello_wasd_sender.py --port 5005
+```
