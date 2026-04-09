@@ -44,8 +44,10 @@ You need to run the following command to let Gazebo know where you project model
 
 This command needs to be done every terminal session
 ```
-export GZ_SIM_RESOURCE_PATH=$PWD/models
+source env_setup.sh
 ```
+This will automatically export relevant paths.
+
 
 Then run the simulation with:
 ```
@@ -53,11 +55,6 @@ gz sim worlds/flat_world.sdf
 ```
 
 This should open the Gazebo GUI and you can start the simulation there.
-
-You will also need to run this command:
-```
-export PYTHONPATH=/usr/lib/python3/dist-packages:$PYTHONPATH
-```
 
 To control the drone with WASD+QE keys, open a second terminal and run the `teleop.py` file:
 ```
