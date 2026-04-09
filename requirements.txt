@@ -7,6 +7,7 @@ numpy
 
 # Tello drone SDK (for real drone deployment)
 djitellopy
+pynput
 
 # Note: Gazebo Python bindings are NOT pip-installable.
 # Install them via apt instead:
