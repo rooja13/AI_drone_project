@@ -6,18 +6,18 @@ Here is the project structure so far and is subject to change:
 
 Here is the project structure so far and is subject to change:
 
-drone_tracker/
-worlds/
-flat_world.sdf --> The main simulation world
-models/
-quadrotor/
-model.config
-model.sdf --> drone
-ground_vehicle/
-model.config
-model.sdf --> Ground vehicle
+-drone_tracker/
+  worlds/
+    flat_world.sdf --> The main simulation world
+  -models/
+    -quadrotor/
+     - model.config
+     - model.sdf --> drone
+-ground_vehicle/
+    model.config
+    model.sdf --> Ground vehicle
 scripts/
-teleop.py --> Keyboard control script Setup This setup is only for Linux (so far). I am running this on a virtual machine and I recommend you also use a virtual machine if you don't have a Linux machine. Install Gazebo Install Gazebo Harmonic (if not already installed) with the following command:
+    teleop.py --> Keyboard control script Setup This setup is only for Linux (so far). I am running this on a virtual machine and I recommend you also use a virtual machine if you don't have a Linux machine. Install Gazebo Install Gazebo Harmonic (if not already installed) with the following command:
 # Setup
 This setup is only for Linux (so far). I am running this on a virtual machine and I recommend you also use a virtual machine if you don't have a Linux machine.
 
