@@ -4,32 +4,20 @@ This project aims to implement a autonomous drone controlled by a neural network
 ## Project Structure
 Here is the project structure so far and is subject to change:
 
-AI_drone_project/
-├── worlds/
-│   └── flat_world.sdf              --> Gazebo simulation world
-├── models/
-│   ├── quadrotor/
-│   │   ├── model.config
-│   │   └── model.sdf               --> Drone model
-│   └── ground_vehicle/
-│       ├── model.config
-│       └── model.sdf               --> Ground vehicle model
-├── scripts/
-│   ├── teleop.py                   --> Manual drone control (WASD+QE)
-│   ├── auto_vehicle.py             --> Auto-drive ground vehicle
-│   ├── camera_feed.py              --> View drone camera feed
-│   ├── vehicle_detector_yolo.py    --> YOLO vehicle detection (standalone)
-│   ├── collect_data.py             --> Collect training images from Gazebo
-│   ├── auto_follow.py              --> Autonomous following in Gazebo
-│   ├── auto_follow_tello.py        --> Autonomous following on real Tello
-│   ├── tello_bridge.py             --> Real Tello drone connection
-│   ├── command_conversion.py       --> Command format conversion
-│   └── tello_wasd_sender.py        --> Manual control for real Tello
-├── training_data/                   --> YOLO training dataset
-├── runs/detect/gazebo_vehicle/      --> Trained YOLO model weights
-├── env_setup.sh
-├── requirements.txt
-└── README.md
+Here is the project structure so far and is subject to change:
+
+drone_tracker/
+worlds/
+flat_world.sdf --> The main simulation world
+models/
+quadrotor/
+model.config
+model.sdf --> drone
+ground_vehicle/
+model.config
+model.sdf --> Ground vehicle
+scripts/
+teleop.py --> Keyboard control script Setup This setup is only for Linux (so far). I am running this on a virtual machine and I recommend you also use a virtual machine if you don't have a Linux machine. Install Gazebo Install Gazebo Harmonic (if not already installed) with the following command:
 # Setup
 This setup is only for Linux (so far). I am running this on a virtual machine and I recommend you also use a virtual machine if you don't have a Linux machine.
 
