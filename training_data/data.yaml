@@ -1,0 +1,7 @@
+
+train: train/images
+val: train/images
+test: train/images
+
+nc: 1
+names: ['ground_vehicle']
