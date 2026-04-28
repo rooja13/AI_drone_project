@@ -61,7 +61,7 @@ class HybridDetector:
         self.confidence = confidence
         if mode in ("yolo", "hybrid"):
             print("Loading YOLO model...")
-            self.yolo = YOLO("yolov8n.pt")
+            self.yolo = YOLO("runs/detect/gazebo_vehicle/weights/best.pt")
             print("YOLO loaded!")
         else:
             self.yolo = None
