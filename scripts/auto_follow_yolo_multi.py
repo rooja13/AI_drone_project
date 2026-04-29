@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """
 YOLO-based autonomous following with multiple vehicles.
-
-Uses YOLOv8 to detect ALL vehicles, then lets you select which one
-to follow by clicking on it or pressing number keys.
-
-The drone tracks the selected vehicle using position and size matching
-across frames (simple tracking).
+Uses TWO-STAGE detection:
+  1. Custom YOLO model finds vehicle-shaped objects
+  2. Pre-trained YOLOv8 verifies they are vehicles, not buildings
 
 Usage:
     python3 scripts/auto_follow_yolo_multi.py --show-camera
@@ -58,12 +55,6 @@ class PIDController:
 
 
 class VehicleTracker:
-    """
-    Tracks a specific vehicle across frames using position and size matching.
-    When multiple vehicles are detected, it matches the closest one to the
-    previously tracked position.
-    """
-
     def __init__(self):
         self.tracked_cx = None
         self.tracked_cy = None
@@ -73,7 +64,6 @@ class VehicleTracker:
         self.locked = False
 
     def select(self, cx, cy, w, h, track_id):
-        """Lock onto a specific vehicle."""
         self.tracked_cx = cx
         self.tracked_cy = cy
         self.tracked_w = w
@@ -82,23 +72,18 @@ class VehicleTracker:
         self.locked = True
 
     def clear(self):
-        """Clear tracking."""
         self.locked = False
         self.tracked_cx = None
         self.tracked_cy = None
         self.track_id = None
 
     def find_match(self, detections):
-        """
-        Find the detection closest to the previously tracked position.
-        Returns the index of the best match, or -1 if no good match.
-        """
         if not self.locked or self.tracked_cx is None:
             return -1
 
         best_idx = -1
         best_dist = float('inf')
-        max_dist = 200  # max pixel distance to consider a match
+        max_dist = 200
 
         for i, det in enumerate(detections):
             cx, cy = det["cx"], det["cy"]
@@ -130,11 +115,24 @@ class YOLOMultiFollower:
         self.lost_count = 0
         self.max_lost = 30
 
-        # YOLO model
-        print(f"Loading YOLO model: {model_path}...")
-        self.yolo = YOLO(model_path)
+        # Size filter
+        self.min_box_size = 20
+        self.max_box_width = 400
+        self.max_box_height = 300
+
+        # Custom YOLO model (trained on Gazebo vehicles)
+        print(f"Loading custom YOLO model: {model_path}...")
+        self.yolo_custom = YOLO(model_path)
         self.confidence = confidence
-        print("YOLO loaded!")
+        print("Custom model loaded!")
+
+        # Pre-trained YOLO model (knows real-world objects)
+        print("Loading pre-trained YOLOv8 for verification...")
+        self.yolo_pretrained = YOLO("yolov8n.pt")
+        print("Pre-trained model loaded!")
+
+        # Pre-trained vehicle class IDs
+        self.vehicle_classes = {2: "Car", 5: "Bus", 7: "Truck", 3: "Motorcycle", 1: "Bicycle"}
 
         # Vehicle tracker
         self.tracker = VehicleTracker()
@@ -154,7 +152,6 @@ class YOLOMultiFollower:
             cv2.setMouseCallback("YOLO Multi-Vehicle Follow", self.mouse_callback)
 
     def mouse_callback(self, event, x, y, flags, param):
-        """Handle mouse clicks to select a vehicle."""
         if event == cv2.EVENT_LBUTTONDOWN:
             self.click_x = x
             self.click_y = y
@@ -187,31 +184,93 @@ class YOLOMultiFollower:
         self.send_cmd()
 
     def detect_vehicles(self, frame):
-        """Run YOLO and return all detections."""
-        results = self.yolo(frame, conf=self.confidence, verbose=False)
-        detections = []
+        """
+        Two-stage detection:
+        1. Custom YOLO finds vehicle-shaped objects
+        2. Pre-trained YOLO verifies they are vehicles, not buildings
+        """
+        frame_h, frame_w = frame.shape[:2]
 
-        for result in results:
+        # Stage 1: Custom model detects all vehicle-like shapes
+        custom_results = self.yolo_custom(frame, conf=self.confidence, verbose=False)
+        candidates = []
+
+        for result in custom_results:
             for box in result.boxes:
-                cls_id = int(box.cls[0])
-                conf = float(box.conf[0])
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
                 w = x2 - x1
                 h = y2 - y1
-                cx = (x1 + x2) // 2
-                cy = (y1 + y2) // 2
-                label = self.yolo.names[cls_id]
+                conf = float(box.conf[0])
+                if (self.min_box_size < w < self.max_box_width and
+                        self.min_box_size < h < self.max_box_height):
+                    candidates.append({
+                        "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                        "w": w, "h": h,
+                        "cx": (x1 + x2) // 2, "cy": (y1 + y2) // 2,
+                        "conf": conf
+                    })
 
-                detections.append({
+        # Stage 2: Pre-trained model scans the frame
+        pretrained_results = self.yolo_pretrained(frame, conf=0.2, verbose=False)
+        pretrained_boxes = []
+
+        for result in pretrained_results:
+            for box in result.boxes:
+                cls_id = int(box.cls[0])
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                pretrained_boxes.append({
                     "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                    "w": w, "h": h, "cx": cx, "cy": cy,
-                    "conf": conf, "label": label, "cls_id": cls_id
+                    "cls_id": cls_id,
+                    "label": self.yolo_pretrained.names[cls_id],
+                    "is_vehicle": cls_id in self.vehicle_classes
                 })
+
+        # Verify each candidate from custom model
+        detections = []
+        for cand in candidates:
+            is_building = False
+            label = "ground_vehicle"
+
+            # Check if pre-trained model sees something at this location
+            for pb in pretrained_boxes:
+                # Calculate overlap between candidate and pretrained box
+                overlap_x = max(0, min(cand["x2"], pb["x2"]) - max(cand["x1"], pb["x1"]))
+                overlap_y = max(0, min(cand["y2"], pb["y2"]) - max(cand["y1"], pb["y1"]))
+                overlap_area = overlap_x * overlap_y
+                cand_area = cand["w"] * cand["h"]
+
+                if cand_area > 0 and overlap_area / cand_area > 0.3:
+                    if pb["is_vehicle"]:
+                        # Pre-trained confirms it's a vehicle
+                        label = pb["label"]
+                        break
+                    elif pb["label"] in ["building", "house", "skyscraper",
+                                         "bench", "chair", "couch", "bed",
+                                         "dining table", "toilet", "tv",
+                                         "refrigerator", "oven", "sink"]:
+                        # Pre-trained says it's a building/furniture - reject
+                        is_building = True
+                        break
+
+            # Additional filters
+            if not is_building:
+                aspect = cand["w"] / max(cand["h"], 1)
+                width_ratio = cand["w"] / frame_w
+
+                # Reject if:
+                # - Takes up more than 40% of frame width (too big = building)
+                # - Taller than wide (aspect < 0.8 = building shape)
+                if width_ratio > 0.4 or aspect < 0.8:
+                    is_building = True
+
+            if not is_building:
+                cand["label"] = label
+                cand["cls_id"] = 0
+                detections.append(cand)
 
         return detections
 
     def check_click_selection(self, detections):
-        """Check if a mouse click landed on a vehicle."""
         if self.click_x < 0:
             return
 
@@ -231,7 +290,6 @@ class YOLOMultiFollower:
         h, w = frame.shape[:2]
         fcx, fcy = w // 2, h // 2
 
-        # Draw all detections
         for i, det in enumerate(detections):
             is_tracked = (i == tracked_idx)
 
@@ -242,11 +300,9 @@ class YOLOMultiFollower:
                 color = (0, 255, 255)
                 thickness = 1
 
-            # Bounding box
             cv2.rectangle(frame, (det["x1"], det["y1"]),
                           (det["x2"], det["y2"]), color, thickness)
 
-            # Label
             if is_tracked:
                 tag = f">> #{i + 1} {det['label']} {det['conf']:.0%} <<"
             else:
@@ -258,7 +314,6 @@ class YOLOMultiFollower:
             cv2.putText(frame, tag, (det["x1"] + 2, det["y1"] - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
 
-            # Crosshair on tracked target
             if is_tracked:
                 cv2.circle(frame, (det["cx"], det["cy"]), 6, color, -1)
                 cv2.line(frame, (det["cx"] - 15, det["cy"]),
@@ -267,11 +322,9 @@ class YOLOMultiFollower:
                          (det["cx"], det["cy"] + 15), color, 2)
                 cv2.line(frame, (fcx, fcy), (det["cx"], det["cy"]), (0, 255, 255), 1)
 
-        # Frame center crosshair
         cv2.line(frame, (fcx - 30, fcy), (fcx + 30, fcy), (128, 128, 128), 1)
         cv2.line(frame, (fcx, fcy - 30), (fcx, fcy + 30), (128, 128, 128), 1)
 
-        # Status
         found = tracked_idx >= 0
         mode = "PAUSED" if self.paused else ("TRACKING" if found else
                 ("SEARCHING" if self.tracker.locked else "SELECT A VEHICLE"))
@@ -279,25 +332,20 @@ class YOLOMultiFollower:
         cv2.putText(frame, f"Mode: {mode}", (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, mc, 2)
 
-        # YOLO badge
-        cv2.putText(frame, "YOLOv8", (w - 100, 30),
+        cv2.putText(frame, "YOLOv8 Two-Stage", (w - 200, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
-        # Vehicle count
         cv2.putText(frame, f"Vehicles: {len(detections)}", (10, 60),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
-        # Tracked vehicle info
         if tracked_idx >= 0:
             det = detections[tracked_idx]
             cv2.putText(frame, f"Following: #{tracked_idx + 1} {det['label']}", (10, 85),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-        # Controls
         cv2.putText(frame, "Click vehicle to select | n=next | p=pause | q=quit",
                     (10, h - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
 
-        # Commands
         cv2.putText(frame, f"Fwd:{fwd:+.2f} Lat:{lat:+.2f} Yaw:{yaw:+.2f} Vert:{vert:+.2f}",
                     (10, h - 40), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
 
@@ -309,8 +357,11 @@ class YOLOMultiFollower:
             return
 
         print("=" * 55)
-        print("  YOLO MULTI-VEHICLE AUTONOMOUS FOLLOWING")
+        print("  YOLO TWO-STAGE MULTI-VEHICLE FOLLOWING")
         print("=" * 55)
+        print("  Stage 1: Custom YOLO detects candidates")
+        print("  Stage 2: Pre-trained YOLO verifies vehicles")
+        print("")
         print("  Click on a vehicle in the camera to follow it")
         print("  Or press 1-9 to select by number")
         print("  n = next vehicle | p = pause | q = quit")
@@ -332,17 +383,12 @@ class YOLOMultiFollower:
                     fh, fw = frame.shape[:2]
                     fcx, fcy = fw // 2, fh // 2
 
-                    # Detect all vehicles
                     detections = self.detect_vehicles(frame)
-
-                    # Check for click selection
                     self.check_click_selection(detections)
 
-                    # Find tracked vehicle
                     if self.tracker.locked:
                         tracked_idx = self.tracker.find_match(detections)
 
-                    # Auto-select first vehicle if none selected
                     if not self.tracker.locked and len(detections) > 0:
                         print("\nAuto-selecting vehicle #1. Click another to switch.")
                         det = detections[0]
@@ -392,7 +438,6 @@ class YOLOMultiFollower:
                             self.stop()
                         print(f"\n{'PAUSED' if self.paused else 'RESUMED'}")
                     elif key == ord("n"):
-                        # Switch to next vehicle
                         if detections:
                             next_idx = 0
                             if tracked_idx >= 0:
@@ -428,7 +473,7 @@ class YOLOMultiFollower:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default="runs/detect/gazebo_vehicle/weights/best.pt",
-                        help="Path to YOLO model")
+                        help="Path to custom YOLO model")
     parser.add_argument("--show-camera", action="store_true", help="Show camera HUD")
     parser.add_argument("--confidence", type=float, default=0.3, help="YOLO confidence threshold")
     args = parser.parse_args()
