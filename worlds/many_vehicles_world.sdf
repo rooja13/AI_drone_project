@@ -1,0 +1,86 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="drone_tracker">
+
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <light name="fill_light" type="directional">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.3 0.3 0.3 1</diffuse>
+      <direction>0.5 -0.3 -0.7</direction>
+    </light>
+
+    <!-- Ground -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry>
+          <material><ambient>0.3 0.35 0.3 1</ambient><diffuse>0.3 0.35 0.3 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Roads -->
+    <model name="road_h1"><static>true</static><link name="link"><visual name="v"><pose>0 0 0.005 0 0 0</pose><geometry><box><size>80 3 0.01</size></box></geometry><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link></model>
+    <model name="road_line_h1"><static>true</static><link name="link"><visual name="v"><pose>0 0 0.01 0 0 0</pose><geometry><box><size>80 0.1 0.01</size></box></geometry><material><ambient>0.9 0.9 0.0 1</ambient><diffuse>0.9 0.9 0.0 1</diffuse></material></visual></link></model>
+    <model name="road_h2"><static>true</static><link name="link"><visual name="v"><pose>0 15 0.005 0 0 0</pose><geometry><box><size>80 3 0.01</size></box></geometry><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link></model>
+    <model name="road_line_h2"><static>true</static><link name="link"><visual name="v"><pose>0 15 0.01 0 0 0</pose><geometry><box><size>80 0.1 0.01</size></box></geometry><material><ambient>0.9 0.9 0.0 1</ambient><diffuse>0.9 0.9 0.0 1</diffuse></material></visual></link></model>
+    <model name="road_h3"><static>true</static><link name="link"><visual name="v"><pose>0 -15 0.005 0 0 0</pose><geometry><box><size>80 3 0.01</size></box></geometry><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link></model>
+    <model name="road_v1"><static>true</static><link name="link"><visual name="v"><pose>0 0 0.005 0 0 0</pose><geometry><box><size>3 50 0.01</size></box></geometry><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link></model>
+    <model name="road_v2"><static>true</static><link name="link"><visual name="v"><pose>15 0 0.005 0 0 0</pose><geometry><box><size>3 50 0.01</size></box></geometry><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link></model>
+    <model name="road_v3"><static>true</static><link name="link"><visual name="v"><pose>-15 0 0.005 0 0 0</pose><geometry><box><size>3 50 0.01</size></box></geometry><material><ambient>0.2 0.2 0.2 1</ambient><diffuse>0.2 0.2 0.2 1</diffuse></material></visual></link></model>
+
+    <!-- Traffic Cones -->
+    <model name="cone_1"><static>true</static><pose>5 1.8 0 0 0 0</pose><link name="link"><visual name="v"><geometry><cone><radius>0.15</radius><length>0.4</length></cone></geometry><material><ambient>1.0 0.5 0.0 1</ambient><diffuse>1.0 0.5 0.0 1</diffuse></material></visual></link></model>
+    <model name="cone_2"><static>true</static><pose>-5 1.8 0 0 0 0</pose><link name="link"><visual name="v"><geometry><cone><radius>0.15</radius><length>0.4</length></cone></geometry><material><ambient>1.0 0.5 0.0 1</ambient><diffuse>1.0 0.5 0.0 1</diffuse></material></visual></link></model>
+    <model name="cone_3"><static>true</static><pose>10 -1.8 0 0 0 0</pose><link name="link"><visual name="v"><geometry><cone><radius>0.15</radius><length>0.4</length></cone></geometry><material><ambient>1.0 0.5 0.0 1</ambient><diffuse>1.0 0.5 0.0 1</diffuse></material></visual></link></model>
+    <model name="cone_4"><static>true</static><pose>-10 -1.8 0 0 0 0</pose><link name="link"><visual name="v"><geometry><cone><radius>0.15</radius><length>0.4</length></cone></geometry><material><ambient>1.0 0.5 0.0 1</ambient><diffuse>1.0 0.5 0.0 1</diffuse></material></visual></link></model>
+    <model name="cone_5"><static>true</static><pose>20 1.8 0 0 0 0</pose><link name="link"><visual name="v"><geometry><cone><radius>0.15</radius><length>0.4</length></cone></geometry><material><ambient>1.0 0.5 0.0 1</ambient><diffuse>1.0 0.5 0.0 1</diffuse></material></visual></link></model>
+    <model name="cone_6"><static>true</static><pose>-20 1.8 0 0 0 0</pose><link name="link"><visual name="v"><geometry><cone><radius>0.15</radius><length>0.4</length></cone></geometry><material><ambient>1.0 0.5 0.0 1</ambient><diffuse>1.0 0.5 0.0 1</diffuse></material></visual></link></model>
+
+    <!-- Lamp Posts -->
+    <model name="lamp_1"><static>true</static><pose>8 2.2 0 0 0 0</pose><link name="link"><visual name="pole"><pose>0 0 1.5 0 0 0</pose><geometry><cylinder><radius>0.05</radius><length>3.0</length></cylinder></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual><visual name="light"><pose>0 0 3.1 0 0 0</pose><geometry><sphere><radius>0.12</radius></sphere></geometry><material><ambient>1.0 1.0 0.8 1</ambient><diffuse>1.0 1.0 0.8 1</diffuse></material></visual></link></model>
+    <model name="lamp_2"><static>true</static><pose>-8 2.2 0 0 0 0</pose><link name="link"><visual name="pole"><pose>0 0 1.5 0 0 0</pose><geometry><cylinder><radius>0.05</radius><length>3.0</length></cylinder></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual><visual name="light"><pose>0 0 3.1 0 0 0</pose><geometry><sphere><radius>0.12</radius></sphere></geometry><material><ambient>1.0 1.0 0.8 1</ambient><diffuse>1.0 1.0 0.8 1</diffuse></material></visual></link></model>
+    <model name="lamp_3"><static>true</static><pose>18 2.2 0 0 0 0</pose><link name="link"><visual name="pole"><pose>0 0 1.5 0 0 0</pose><geometry><cylinder><radius>0.05</radius><length>3.0</length></cylinder></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual><visual name="light"><pose>0 0 3.1 0 0 0</pose><geometry><sphere><radius>0.12</radius></sphere></geometry><material><ambient>1.0 1.0 0.8 1</ambient><diffuse>1.0 1.0 0.8 1</diffuse></material></visual></link></model>
+    <model name="lamp_4"><static>true</static><pose>-18 2.2 0 0 0 0</pose><link name="link"><visual name="pole"><pose>0 0 1.5 0 0 0</pose><geometry><cylinder><radius>0.05</radius><length>3.0</length></cylinder></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual><visual name="light"><pose>0 0 3.1 0 0 0</pose><geometry><sphere><radius>0.12</radius></sphere></geometry><material><ambient>1.0 1.0 0.8 1</ambient><diffuse>1.0 1.0 0.8 1</diffuse></material></visual></link></model>
+
+    <!-- Drone -->
+    <include><uri>model://quadrotor</uri><pose>0 0 3 0 0 0</pose></include>
+
+    <!-- 10 Moving Vehicles -->
+    <include><uri>model://ground_vehicle</uri><name>vehicle_1_red</name><pose>5 0 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_blue</uri><name>vehicle_2_blue</name><pose>-5 0 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_green</uri><name>vehicle_3_green</name><pose>0 15 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_yellow</uri><name>vehicle_4_yellow</name><pose>15 0 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_orange</uri><name>vehicle_5_orange</name><pose>-15 15 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_purple</uri><name>vehicle_6_purple</name><pose>10 -15 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle</uri><name>vehicle_7_red</name><pose>-10 -15 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_blue</uri><name>vehicle_8_blue</name><pose>20 15 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_green</uri><name>vehicle_9_green</name><pose>-20 0 0.2 0 0 0</pose></include>
+    <include><uri>model://ground_vehicle_yellow</uri><name>vehicle_10_yellow</name><pose>0 -15 0.2 0 0 0</pose></include>
+
+  </world>
+</sdf>

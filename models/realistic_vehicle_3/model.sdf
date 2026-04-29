@@ -1,0 +1,61 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="realistic_vehicle_3">
+
+    <link name="chassis">
+      <inertial>
+        <mass>5.0</mass>
+        <inertia><ixx>0.13</ixx><iyy>0.30</iyy><izz>0.43</izz></inertia>
+      </inertial>
+      <collision name="collision">
+        <pose>0 0 0 0 0 -1.57079632679</pose>
+        <geometry>
+          <mesh>
+            <uri>meshes/pickup.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <visual name="visual">
+        <pose>0 0 0 0 0 -1.57079632679</pose>
+        <geometry>
+          <mesh>
+            <uri>meshes/pickup.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+
+    <link name="left_wheel">
+      <pose>0 0.6 0 -1.5707 0 0</pose>
+      <inertial><mass>0.5</mass><inertia><ixx>0.02</ixx><iyy>0.02</iyy><izz>0.04</izz></inertia></inertial>
+      <collision name="collision"><geometry><cylinder><radius>0.18</radius><length>0.05</length></cylinder></geometry></collision>
+    </link>
+
+    <link name="right_wheel">
+      <pose>0 -0.6 0 -1.5707 0 0</pose>
+      <inertial><mass>0.5</mass><inertia><ixx>0.02</ixx><iyy>0.02</iyy><izz>0.04</izz></inertia></inertial>
+      <collision name="collision"><geometry><cylinder><radius>0.18</radius><length>0.05</length></cylinder></geometry></collision>
+    </link>
+
+    <joint name="left_wheel_joint" type="revolute">
+      <parent>chassis</parent><child>left_wheel</child>
+      <axis><xyz>0 0 1</xyz></axis>
+    </joint>
+
+    <joint name="right_wheel_joint" type="revolute">
+      <parent>chassis</parent><child>right_wheel</child>
+      <axis><xyz>0 0 1</xyz></axis>
+    </joint>
+
+    <plugin filename="gz-sim-diff-drive-system"
+            name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>1.2</wheel_separation>
+      <wheel_radius>0.18</wheel_radius>
+      <topic>/realistic_vehicle_3/cmd_vel</topic>
+      <odom_topic>/realistic_vehicle_3/odom</odom_topic>
+    </plugin>
+
+  </model>
+</sdf>

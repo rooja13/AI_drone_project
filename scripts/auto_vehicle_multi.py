@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Drive multiple ground vehicles simultaneously in different patterns.
+Drive multiple realistic ground vehicles simultaneously.
 
 Usage:
     python3 scripts/auto_vehicle_multi.py
@@ -28,9 +28,14 @@ class VehicleDriver:
     def stop(self):
         self.send(0.0, 0.0)
 
-    def drive_circle(self, radius_factor=0.5):
+    def drive_circle(self):
         while self.running:
-            self.send(self.speed, self.speed * radius_factor)
+            self.send(self.speed, self.speed * 0.5)
+            time.sleep(0.05)
+
+    def drive_circle_reverse(self):
+        while self.running:
+            self.send(self.speed, -self.speed * 0.5)
             time.sleep(0.05)
 
     def drive_random(self):
@@ -64,24 +69,52 @@ class VehicleDriver:
             self.stop()
             time.sleep(0.3)
 
+    def drive_figure_eight(self):
+        while self.running:
+            t = 0
+            while t < 6.0 and self.running:
+                self.send(self.speed, 0.5)
+                time.sleep(0.05)
+                t += 0.05
+            t = 0
+            while t < 6.0 and self.running:
+                self.send(self.speed, -0.5)
+                time.sleep(0.05)
+                t += 0.05
+
+    def drive_zigzag(self):
+        while self.running:
+            t = 0
+            while t < 2.0 and self.running:
+                self.send(self.speed, 0.8)
+                time.sleep(0.05)
+                t += 0.05
+            t = 0
+            while t < 2.0 and self.running:
+                self.send(self.speed, -0.8)
+                time.sleep(0.05)
+                t += 0.05
+
 
 def main():
     node = Node()
     time.sleep(0.5)
 
-    # Create drivers for each vehicle with different patterns
     vehicles = [
-        {"name": "RED", "topic": "/ground_vehicle/cmd_vel", "pattern": "circle", "speed": 1.0},
-        {"name": "BLUE", "topic": "/ground_vehicle_blue/cmd_vel", "pattern": "random", "speed": 0.8},
-        {"name": "GREEN", "topic": "/ground_vehicle_green/cmd_vel", "pattern": "square", "speed": 1.2},
+        {"name": "CAR 1 (Hatchback)",  "topic": "/realistic_vehicle/cmd_vel",   "pattern": "circle",         "speed": 1.0},
+        {"name": "SUV 1",              "topic": "/realistic_vehicle_2/cmd_vel",  "pattern": "random",         "speed": 0.8},
+        {"name": "PICKUP 1",           "topic": "/realistic_vehicle_3/cmd_vel",  "pattern": "square",         "speed": 1.2},
+        {"name": "CAR 2 (Hatchback)",  "topic": "/model/car_2/cmd_vel",         "pattern": "figure_eight",   "speed": 0.9},
+        {"name": "SUV 2",              "topic": "/model/suv_2/cmd_vel",         "pattern": "zigzag",         "speed": 1.0},
+        {"name": "PICKUP 2",           "topic": "/model/pickup_2/cmd_vel",      "pattern": "circle_reverse", "speed": 0.7},
     ]
 
     drivers = []
     threads = []
 
-    print("=" * 50)
-    print("  MULTI-VEHICLE DRIVER")
-    print("=" * 50)
+    print("=" * 55)
+    print("  REALISTIC MULTI-VEHICLE DRIVER (6 vehicles)")
+    print("=" * 55)
 
     for v in vehicles:
         driver = VehicleDriver(node, v["topic"], v["speed"])
@@ -89,17 +122,20 @@ def main():
 
         pattern_func = {
             "circle": driver.drive_circle,
+            "circle_reverse": driver.drive_circle_reverse,
             "random": driver.drive_random,
             "square": driver.drive_square,
+            "figure_eight": driver.drive_figure_eight,
+            "zigzag": driver.drive_zigzag,
         }[v["pattern"]]
 
         t = threading.Thread(target=pattern_func, daemon=True)
         threads.append(t)
-        print(f"  {v['name']}: {v['pattern']} at speed {v['speed']}")
+        print(f"  {v['name']}: {v['pattern']} @ speed {v['speed']}")
 
-    print("=" * 50)
+    print("=" * 55)
     print("  Press Ctrl+C to stop all vehicles")
-    print("=" * 50)
+    print("=" * 55)
 
     for t in threads:
         t.start()
