@@ -112,6 +112,9 @@ class YOLOMultiFollower:
         self.latest_frame = None
         self.frame_lock = threading.Lock()
         self.target_box_width = 120
+        # Keep the tracked vehicle 3/4 of the way down from the top of the video feed.
+        # 0.50 would be the frame center; 0.75 puts the vehicle lower in the image.
+        self.target_y_ratio = 0.75
         self.lost_count = 0
         self.max_lost = 30
 
@@ -143,7 +146,7 @@ class YOLOMultiFollower:
 
         # PID controllers
         self.yaw_pid = PIDController(0.003, 0.0001, 0.001)
-        self.fwd_pid = PIDController(0.01, 0.0005, 0.002)
+        self.fwd_pid = PIDController(0.015, 0.0005, 0.002, out_min=-1.0, out_max=2.0)
         self.lat_pid = PIDController(0.002, 0.0001, 0.001, -0.5, 0.5)
         self.vert_pid = PIDController(0.002, 0.0001, 0.001, -0.5, 0.5)
 
@@ -281,6 +284,8 @@ class YOLOMultiFollower:
                 print(f"\nSelected vehicle #{i + 1}: {det['label']} ({det['conf']:.0%})")
                 self.yaw_pid.reset()
                 self.fwd_pid.reset()
+                self.lat_pid.reset()
+                self.vert_pid.reset()
                 break
 
         self.click_x = -1
@@ -288,7 +293,8 @@ class YOLOMultiFollower:
 
     def draw_hud(self, frame, detections, tracked_idx, fwd, lat, yaw, vert):
         h, w = frame.shape[:2]
-        fcx, fcy = w // 2, h // 2
+        fcx = w // 2
+        target_y = int(h * self.target_y_ratio)
 
         for i, det in enumerate(detections):
             is_tracked = (i == tracked_idx)
@@ -320,10 +326,14 @@ class YOLOMultiFollower:
                          (det["cx"] + 15, det["cy"]), color, 2)
                 cv2.line(frame, (det["cx"], det["cy"] - 15),
                          (det["cx"], det["cy"] + 15), color, 2)
-                cv2.line(frame, (fcx, fcy), (det["cx"], det["cy"]), (0, 255, 255), 1)
+                cv2.line(frame, (fcx, target_y), (det["cx"], det["cy"]), (0, 255, 255), 1)
 
-        cv2.line(frame, (fcx - 30, fcy), (fcx + 30, fcy), (128, 128, 128), 1)
-        cv2.line(frame, (fcx, fcy - 30), (fcx, fcy + 30), (128, 128, 128), 1)
+        # Desired target position for the followed vehicle: centered horizontally,
+        # 3/4 of the way down from the top of the video feed.
+        cv2.line(frame, (fcx - 30, target_y), (fcx + 30, target_y), (128, 128, 128), 1)
+        cv2.line(frame, (fcx, target_y - 30), (fcx, target_y + 30), (128, 128, 128), 1)
+        cv2.putText(frame, "Target: 3/4 from top", (fcx + 35, target_y + 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (128, 128, 128), 1)
 
         found = tracked_idx >= 0
         mode = "PAUSED" if self.paused else ("TRACKING" if found else
@@ -381,7 +391,8 @@ class YOLOMultiFollower:
 
                 if frame is not None:
                     fh, fw = frame.shape[:2]
-                    fcx, fcy = fw // 2, fh // 2
+                    fcx = fw // 2
+                    target_y = int(fh * self.target_y_ratio)
 
                     detections = self.detect_vehicles(frame)
                     self.check_click_selection(detections)
@@ -403,7 +414,9 @@ class YOLOMultiFollower:
                             bw = det["w"]
 
                             err_x = cx - fcx
-                            err_y = cy - fcy
+                            # Vertical error is measured against the 3/4-height target line,
+                            # not the center of the video feed.
+                            err_y = cy - target_y
                             err_dist = self.target_box_width - bw
 
                             yaw = -self.yaw_pid.compute(err_x)
@@ -446,6 +459,8 @@ class YOLOMultiFollower:
                             self.tracker.select(det["cx"], det["cy"], det["w"], det["h"], next_idx)
                             self.yaw_pid.reset()
                             self.fwd_pid.reset()
+                            self.lat_pid.reset()
+                            self.vert_pid.reset()
                             print(f"\nSwitched to vehicle #{next_idx + 1}")
                     elif ord("1") <= key <= ord("9"):
                         idx = key - ord("1")
@@ -454,6 +469,8 @@ class YOLOMultiFollower:
                             self.tracker.select(det["cx"], det["cy"], det["w"], det["h"], idx)
                             self.yaw_pid.reset()
                             self.fwd_pid.reset()
+                            self.lat_pid.reset()
+                            self.vert_pid.reset()
                             print(f"\nSelected vehicle #{idx + 1}")
 
                 time.sleep(0.02)

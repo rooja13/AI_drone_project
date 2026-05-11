@@ -60,9 +60,11 @@ class PIDController:
 
 
 class HybridDetector:
-    def __init__(self, mode="hybrid", model_path="runs/detect/gazebo_vehicle/weights/best.pt", confidence=0.3):
+    def __init__(self, mode="hybrid", model_path="runs/detect/gazebo_vehicle/weights/best.pt",
+                 confidence=0.55, color_min_area=1000):
         self.mode = mode
         self.confidence = confidence
+        self.color_min_area = color_min_area
         if mode in ("yolo", "hybrid"):
             print(f"Loading YOLO model: {model_path}...")
             self.yolo = YOLO(model_path)
@@ -90,7 +92,9 @@ class HybridDetector:
         return False, 0, 0, 0, 0, (0, 0), "", 0, "YOLO"
 
     def detect_color(self, frame):
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Frames passed into the detector are RGB. Keep the color fallback
+        # consistent with the YOLO input path.
+        hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
         mask1 = cv2.inRange(hsv, np.array([0, 80, 80]), np.array([10, 255, 255]))
         mask2 = cv2.inRange(hsv, np.array([160, 80, 80]), np.array([180, 255, 255]))
         mask = cv2.bitwise_or(mask1, mask2)
@@ -101,9 +105,10 @@ class HybridDetector:
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             largest = max(contours, key=cv2.contourArea)
-            if cv2.contourArea(largest) > 500:
+            area = cv2.contourArea(largest)
+            if area > self.color_min_area:
                 x, y, w, h = cv2.boundingRect(largest)
-                conf = min(cv2.contourArea(largest) / 5000.0, 1.0)
+                conf = min(area / 5000.0, 1.0)
                 return True, x + w // 2, y + h // 2, w, h, (x, y), "Vehicle", conf, "Color"
         return False, 0, 0, 0, 0, (0, 0), "", 0, "Color"
 
@@ -128,11 +133,17 @@ class TelloAutoFollow:
     """Autonomous following using the Tello's own camera."""
 
     def __init__(self, detector_mode="hybrid", model_path="runs/detect/gazebo_vehicle/weights/best.pt",
-                 use_udp=False, udp_port=5005):
-        self.detector = HybridDetector(mode=detector_mode, model_path=model_path)
+                 use_udp=False, udp_port=5005, detection_confidence=0.55,
+                 target_y_ratio=0.75):
+        self.detector = HybridDetector(mode=detector_mode, model_path=model_path,
+                                       confidence=detection_confidence)
         self.paused = False
         self.use_udp = use_udp
         self.target_box_width = 150  # larger for real world
+        # Aim to keep the detected ground robot centered left/right and in the
+        # lower quarter of the camera image vertically. 0.75 means 75% down
+        # from the top of the frame.
+        self.target_y_ratio = target_y_ratio
         self.lost_count = 0
         self.max_lost = 30
 
@@ -180,11 +191,13 @@ class TelloAutoFollow:
     def draw_hud(self, frame, found, cx, cy, bw, bh, box_xy,
                  label, conf, method, fwd, lat, yaw, vert):
         h, w = frame.shape[:2]
-        fcx, fcy = w // 2, h // 2
+        fcx = w // 2
+        fcy = int(h * self.target_y_ratio)
 
         if found:
             x, y = box_xy
-            color = (0, 255, 0) if method == "YOLO" else (255, 165, 0)
+            # draw_hud receives a BGR display frame, so color tuples are BGR.
+            color = (0, 255, 0) if method == "YOLO" else (0, 165, 255)
             cv2.rectangle(frame, (x, y), (x + bw, y + bh), color, 3)
             cv2.circle(frame, (cx, cy), 6, color, -1)
             cv2.line(frame, (cx - 15, cy), (cx + 15, cy), color, 2)
@@ -197,6 +210,8 @@ class TelloAutoFollow:
 
         cv2.line(frame, (fcx - 30, fcy), (fcx + 30, fcy), (128, 128, 128), 1)
         cv2.line(frame, (fcx, fcy - 30), (fcx, fcy + 30), (128, 128, 128), 1)
+        cv2.putText(frame, "Target", (fcx + 10, fcy - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (128, 128, 128), 1)
 
         mode = "PAUSED" if self.paused else ("TRACKING" if found else "SEARCHING")
         mc = (0, 255, 255) if self.paused else ((0, 255, 0) if found else (0, 0, 255))
@@ -207,9 +222,10 @@ class TelloAutoFollow:
         if self.tello:
             try:
                 battery = self.tello.get_battery()
-                cv2.putText(frame, f"Battery: {battery}%", (w - 180, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            except:
+                if battery is not None:
+                    cv2.putText(frame, f"Battery: {battery}%", (w - 180, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            except Exception:
                 pass
 
         cv2.putText(frame, f"Fwd:{fwd:+.2f} Lat:{lat:+.2f} Yaw:{yaw:+.2f} Vert:{vert:+.2f}",
@@ -219,9 +235,23 @@ class TelloAutoFollow:
     def run(self):
         # Connect and start video
         if not self.use_udp:
-            self.tello.connect()
-            print(f"Battery: {self.tello.get_battery()}%")
+            try:
+                self.tello.connect(wait_for_state=False)
+            except TypeError:
+                # Older/newer djitellopy versions may not accept the keyword.
+                self.tello.connect(False)
+            except Exception as e:
+                print("\nERROR: Could not connect to the Tello.")
+                print("The drone responded to SDK commands, but no state packet was received.")
+                raise e
+
+            try:
+                print(f"Battery: {self.tello.get_battery()}%")
+            except Exception:
+                print("Battery: unavailable because no Tello state packet was received.")
+            
             self.tello.streamon()
+
             time.sleep(2)
             frame_reader = self.tello.get_frame_read()
         else:
@@ -231,6 +261,8 @@ class TelloAutoFollow:
         print("  TELLO AUTONOMOUS FOLLOWING")
         print(f"  Mode: {'UDP' if self.use_udp else 'Direct'}")
         print(f"  Detector: {self.detector.mode.upper()}")
+        print(f"  YOLO confidence threshold: {self.detector.confidence:.2f}")
+        print(f"  Target screen position: x=50%, y={self.target_y_ratio:.0%}")
         print("=" * 50)
         print("  Controls: p=pause  d=switch detector  q=quit")
         print("=" * 50)
@@ -256,16 +288,28 @@ class TelloAutoFollow:
                     time.sleep(0.1)
                     continue
                 else:
-                    frame = frame_reader.frame
-                    if frame is None:
+                    raw_frame = frame_reader.frame
+                    if raw_frame is None:
                         time.sleep(0.01)
                         continue
 
-                fwd = lat = yaw = vert = 0.0
-                fh, fw = frame.shape[:2]
-                fcx, fcy = fw // 2, fh // 2
+                    # Keep two separate frame paths:
+                    #   1. yolo_frame: RGB for YOLO/color detection.
+                    #   2. display_frame: BGR for OpenCV HUD drawing/display.
+                    #
+                    # The test script showed that --source-format rgb displays
+                    # correctly, so frame_reader.frame is already RGB in this
+                    # environment. Keep the model input as RGB, and convert only
+                    # the display copy to BGR because cv2.imshow expects BGR.
+                    yolo_frame = raw_frame.copy()
+                    display_frame = cv2.cvtColor(raw_frame, cv2.COLOR_RGB2BGR)
 
-                found, cx, cy, bw, bh, box_xy, label, conf, method = self.detector.detect(frame)
+                fwd = lat = yaw = vert = 0.0
+                fh, fw = yolo_frame.shape[:2]
+                fcx = fw // 2
+                fcy = int(fh * self.target_y_ratio)
+
+                found, cx, cy, bw, bh, box_xy, label, conf, method = self.detector.detect(yolo_frame)
 
                 if not self.paused:
                     if found:
@@ -290,9 +334,10 @@ class TelloAutoFollow:
                         else:
                             self.stop()
 
-                display = self.draw_hud(frame, found, cx, cy, bw, bh,
+                display = self.draw_hud(display_frame, found, cx, cy, bw, bh,
                                         box_xy, label, conf, method,
                                         fwd, lat, yaw, vert)
+                # display_frame is already BGR, which is what cv2.imshow expects.
                 cv2.imshow("Tello Auto Follow", display)
 
                 key = cv2.waitKey(1) & 0xFF
@@ -332,13 +377,19 @@ def main():
                         help="Send commands via UDP to command_conversion.py")
     parser.add_argument("--udp-port", type=int, default=5005,
                         help="UDP port for MotionCommand output")
+    parser.add_argument("--confidence", type=float, default=0.7,
+                        help="YOLO confidence threshold for accepting robot detections")
+    parser.add_argument("--target-y-ratio", type=float, default=0.75,
+                        help="Vertical image target as a fraction from top of frame; 0.75 is lower quarter")
     args = parser.parse_args()
 
     follower = TelloAutoFollow(
         detector_mode=args.detector,
         model_path=args.model,
         use_udp=args.udp,
-        udp_port=args.udp_port
+        udp_port=args.udp_port,
+        detection_confidence=args.confidence,
+        target_y_ratio=args.target_y_ratio
     )
     follower.run()
 
